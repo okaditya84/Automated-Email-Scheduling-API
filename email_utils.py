@@ -27,7 +27,7 @@ async def send_email(recipient: str, subject: str, body: str):
     try:
         smtp = aiosmtplib.SMTP(hostname="smtp.gmail.com", port=587, use_tls=True)
         await smtp.connect()
-        await smtp.login(os.getenv("EMAIL_USER", "jethaniaditya7@gmail.com"), os.getenv("EMAIL_PASSWORD", "hArrYPOTTER@4"))
+        await smtp.login(os.getenv("EMAIL_USER"), os.getenv("EMAIL_PASSWORD"))
         await smtp.send_message(message)
         await smtp.quit()
         print(f"Email sent successfully to {recipient}")
