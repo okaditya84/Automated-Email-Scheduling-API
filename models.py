@@ -10,5 +10,6 @@ class EmailSchedule(BaseModel):
     recurring: bool
     recurrence_type: Optional[str] = None
     recurrence_value: Optional[str] = None
-    id: Optional[int] = Field(default=None)
-    is_sent: Optional[bool] = Field(default=False)
+    id: Optional[int] = None
+    is_sent: Optional[bool] = False
+
