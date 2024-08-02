@@ -17,14 +17,27 @@ load_dotenv()
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI', 'sqlite:///emails.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Celery configuration
+app.config['CELERY_BROKER_URL'] = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+app.config['CELERY_RESULT_BACKEND'] = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+
 db.init_app(app)
 
-celery = Celery(app.name, broker=os.getenv('REDIS_URL', 'redis://localhost:6379/0'))
+# Initialize Celery
+celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
 celery.conf.update(app.config)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+class ContextTask(celery.Task):
+    def __call__(self, *args, **kwargs):
+        with app.app_context():
+            return self.run(*args, **kwargs)
+
+celery.Task = ContextTask
 
 @app.route('/schedule-email', methods=['POST'])
 def schedule_email():
@@ -51,7 +64,12 @@ def schedule_email():
         db.session.add(email)
         db.session.commit()
 
-        schedule_task.apply_async(args=[email.id], eta=schedule_time)
+        try:
+            schedule_task.apply_async(args=[email.id], eta=schedule_time)
+            logger.info(f"Task scheduled for email id: {email.id}")
+        except Exception as celery_error:
+            logger.error(f"Failed to schedule Celery task: {str(celery_error)}")
+            return jsonify({"error": "Failed to schedule email task"}), 500
 
         return jsonify({"message": "Email scheduled successfully", "id": email.id}), 201
     except Exception as e:
@@ -87,10 +105,10 @@ def cancel_scheduled_email(id):
         logger.error(f"Error in cancel_scheduled_email: {str(e)}")
         return jsonify({"error": "An error occurred while cancelling the email"}), 500
 
-@celery.task
-def schedule_task(email_id):
-    with app.app_context():
-        try:
+@celery.task(bind=True)
+def schedule_task(self, email_id):
+    try:
+        with app.app_context():
             email = ScheduledEmail.query.get(email_id)
             if email:
                 send_email(email)
@@ -102,8 +120,9 @@ def schedule_task(email_id):
                 else:
                     db.session.delete(email)
                     db.session.commit()
-        except Exception as e:
-            logger.error(f"Error in schedule_task: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error in schedule_task: {str(e)}")
+        self.retry(exc=e, countdown=60)  # Retry after 60 seconds
 
 def send_email(email):
     try:
