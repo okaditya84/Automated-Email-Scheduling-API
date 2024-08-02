@@ -1,25 +1,15 @@
-# models.py
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.types import JSON
+from sqlalchemy import Column, Integer, String, DateTime, Boolean
+from database import Base
 
-db = SQLAlchemy()
+class EmailSchedule(Base):
+    __tablename__ = "email_schedules"
 
-class ScheduledEmail(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    recipient = db.Column(db.String(120), nullable=False)
-    subject = db.Column(db.String(120), nullable=False)
-    body = db.Column(db.Text, nullable=False)
-    schedule_time = db.Column(db.DateTime, nullable=False)
-    recurrence = db.Column(db.String(20))
-    attachments = db.Column(JSON)  # Changed from ARRAY to JSON
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'recipient': self.recipient,
-            'subject': self.subject,
-            'body': self.body,
-            'schedule_time': self.schedule_time.isoformat(),
-            'recurrence': self.recurrence,
-            'attachments': self.attachments
-        }
+    id = Column(Integer, primary_key=True, index=True)
+    recipient = Column(String, index=True)
+    subject = Column(String)
+    body = Column(String)
+    schedule_time = Column(DateTime)
+    recurring = Column(Boolean, default=False)
+    recurrence_type = Column(String, nullable=True)  # daily, weekly, monthly, quarterly
+    recurrence_value = Column(String, nullable=True)  # time/day/etc.
+    is_sent = Column(Boolean, default=False)

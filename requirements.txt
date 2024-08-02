@@ -1,29 +1,6 @@
-# requirements.txt
-
-# Web Framework
-Flask
-
-# Database ORM
-Flask-SQLAlchemy
-SQLAlchemy
-
-# Task Queue
+fastapi
+uvicorn
 celery
-
-# Redis (for Celery broker)
 redis
-
-# Email handling
-email-validator
-
-# Date and time handling
-python-dateutil
-
-# For handling environment variables
-python-dotenv
-
-# WSGI server for production
-gunicorn
-
-# For testing
-pytest
+pydantic
+aiosmtplib
