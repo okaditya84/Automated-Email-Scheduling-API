@@ -7,13 +7,16 @@ class EmailScheduleCreate(BaseModel):
     subject: str
     body: str
     schedule_time: datetime
-    recurring: Optional[bool] = False
+    recurring: bool
     recurrence_type: Optional[str] = None
     recurrence_value: Optional[str] = None
 
 class EmailSchedule(EmailScheduleCreate):
     id: int
-    is_sent: bool
+    is_sent: bool = False
 
     class Config:
-        orm_mode = True
+        from_attributes = True  # This replaces orm_mode=True
+
+class DeleteResponse(BaseModel):
+    detail: str

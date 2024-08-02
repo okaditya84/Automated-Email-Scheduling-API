@@ -1,3 +1,5 @@
+
+
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import engine, Base, get_db
@@ -8,41 +10,48 @@ from celery import Celery
 from celery_config import celery_app
 from tasks import send_scheduled_email
 from datetime import datetime, timedelta
-from datetime import datetime
 import pytz
 
 app = FastAPI()
 
 Base.metadata.create_all(bind=engine)
 
-# @app.post("/schedule-email/", response_model=EmailSchedule)
-# def schedule_email(email_schedule: EmailScheduleCreate, db: Session = Depends(get_db)):
-#     db_email_schedule = crud.create_email_schedule(db, email_schedule)
-#     delay = (email_schedule.schedule_time - datetime.utcnow()).total_seconds()
-#     celery_app.send_task("tasks.send_scheduled_email", args=[db_email_schedule.id], countdown=delay)
-#     return db_email_schedule
 
-@app.post("/schedule-email/")
-def schedule_email(email_schedule: EmailSchedule):
-    # Assign a unique id to the email schedule
-    email_schedule.id = len(scheduled_emails) + 1
 
-    schedule_time = email_schedule.schedule_time.astimezone(pytz.UTC)
-    current_time = datetime.utcnow().replace(tzinfo=pytz.UTC)
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.orm import Session
+from database import engine, Base, get_db
+from schemas import EmailScheduleCreate, EmailSchedule, DeleteResponse
+from models import EmailSchedule as EmailScheduleModel
+import crud
+from celery import Celery
+from celery_config import celery_app
+from tasks import send_scheduled_email
+from datetime import datetime, timedelta
+import pytz
+
+app = FastAPI()
+
+Base.metadata.create_all(bind=engine)
+
+@app.post("/schedule-email/", response_model=EmailSchedule)
+def schedule_email(email_schedule: EmailScheduleCreate, db: Session = Depends(get_db)):
+    schedule_time = email_schedule.schedule_time.replace(tzinfo=pytz.UTC)
+    current_time = datetime.now(pytz.UTC)
     delay = (schedule_time - current_time).total_seconds()
 
-    task_id = None
     if delay > 0:
+        db_email_schedule = crud.create_email_schedule(db, email_schedule)
+        
         if email_schedule.recurring:
-            task_id = schedule_recurring_email.apply_async((email_schedule.dict(),), eta=schedule_time)
+            # Handle recurring emails (you'll need to implement this)
+            pass
         else:
-            task_id = send_email.apply_async((email_schedule.dict(),), countdown=delay)
+            send_scheduled_email.apply_async((db_email_schedule.id,), countdown=delay)
 
-    if task_id:
-        scheduled_emails[email_schedule.id] = email_schedule.dict()
-        scheduled_emails[email_schedule.id]["task_id"] = task_id.id
-
-    return email_schedule.dict()
+        return db_email_schedule
+    else:
+        raise HTTPException(status_code=400, detail="Schedule time must be in the future")
 
 @app.get("/scheduled-emails/", response_model=list[EmailSchedule])
 def read_email_schedules(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
@@ -56,10 +65,9 @@ def read_email_schedule(id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Email schedule not found")
     return db_email_schedule
 
-@app.delete("/scheduled-emails/{id}", response_model=EmailSchedule)
+@app.delete("/scheduled-emails/{id}", response_model=DeleteResponse)
 def delete_email_schedule(id: int, db: Session = Depends(get_db)):
     success = crud.delete_email_schedule(db, id)
     if not success:
         raise HTTPException(status_code=404, detail="Email schedule not found")
-    return {"detail": "Email schedule deleted successfully"}
-
+    return DeleteResponse(detail="Email schedule deleted successfully")
